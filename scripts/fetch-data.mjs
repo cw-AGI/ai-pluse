@@ -24,6 +24,18 @@ const FEEDS = [
   ["Anthropic", "https://www.anthropic.com/rss.xml"],
 ];
 
+// 通讯/无线行业 RSS（5G/6G/Open RAN/运营商/设备商等）。同样失效自动跳过。
+const TELECOM_FEEDS = [
+  ["RCR Wireless", "https://www.rcrwireless.com/feed"],
+  ["Telecoms.com", "https://www.telecoms.com/feed/"],
+  ["Telecom Ramblings", "https://www.telecomramblings.com/feed/"],
+  ["Light Reading", "https://www.lightreading.com/rss.xml"],
+  ["Fierce Network", "https://www.fierce-network.com/rss.xml"],
+  ["Mobile World Live", "https://www.mobileworldlive.com/feed/"],
+  ["Telecompaper", "https://www.telecompaper.com/rss/news"],
+];
+const TELECOM_HN = ["5G", "6G", "Open RAN", "telecom", "Starlink", "fiber network"];
+
 // ---------- 基础工具 ----------
 async function withTimeout(p, ms = 20000) {
   const c = new AbortController(); const id = setTimeout(() => c.abort(), ms);
@@ -150,6 +162,25 @@ async function srcJobs() {
 }
 const fmtNum = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : "" + n;
 
+async function srcTelecomFeeds() {
+  const res = await Promise.allSettled(TELECOM_FEEDS.map(([name, url]) =>
+    getText(url).then(x => parseFeed(x, "tele").map(i => ({ ...i, source: name })))));
+  const cut = Date.now() - 30 * 86400 * 1000;
+  return res.flatMap(r => r.status === "fulfilled" ? r.value : []).filter(i => i.time > cut);
+}
+async function srcTelecomHN() {
+  const since = Math.floor(Date.now() / 1000) - 7 * 86400;
+  const all = [];
+  for (const q of TELECOM_HN) {
+    try {
+      const d = await getJSON(`https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(q)}&tags=story&numericFilters=created_at_i>${since},points>8&hitsPerPage=15`);
+      (d.hits || []).forEach(h => { if (h.title) all.push({ src: "hn", title: h.title, url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+        time: h.created_at_i * 1000, meta: [["pts", h.points || 0], ["cmt", h.num_comments || 0]] }); });
+    } catch (e) { console.warn("telecomHN", q, e.message); }
+  }
+  return all;
+}
+
 // ---------- 合并 / 去重 / 截断 ----------
 function dedupe(items) {
   const seen = new Set();
@@ -157,17 +188,18 @@ function dedupe(items) {
 }
 
 (async () => {
-  const [hn, dev, arxiv, feeds, gh, hf, jobs] = await Promise.all([
-    srcHNStories(), srcDevto(), srcArxiv(), srcFeeds(), srcGitHub(), srcHF(), srcJobs()
+  const [hn, dev, arxiv, feeds, gh, hf, jobs, teleFeeds, teleHN] = await Promise.all([
+    srcHNStories(), srcDevto(), srcArxiv(), srcFeeds(), srcGitHub(), srcHF(), srcJobs(), srcTelecomFeeds(), srcTelecomHN()
   ]);
   const news = dedupe([...hn, ...dev, ...arxiv, ...feeds]).sort((a, b) => b.time - a.time).slice(0, 70);
   const tech = dedupe([...gh, ...hf]).slice(0, 50);
   const jobsList = dedupe(jobs).sort((a, b) => b.time - a.time).slice(0, 45);
+  const telecom = dedupe([...teleFeeds, ...teleHN]).sort((a, b) => b.time - a.time).slice(0, 60);
 
   const data = { meta: { generatedAt: new Date().toISOString(), keywords: NEWS_QUERIES,
-      counts: { news: news.length, tech: tech.length, jobs: jobsList.length } },
-    news, tech, jobs: jobsList };
+      counts: { news: news.length, tech: tech.length, jobs: jobsList.length, tele: telecom.length } },
+    news, tech, jobs: jobsList, tele: telecom };
 
   writeFileSync("data.json", JSON.stringify(data, null, 0));
-  console.log(`data.json written: news=${news.length} tech=${tech.length} jobs=${jobsList.length}`);
+  console.log(`data.json written: news=${news.length} tech=${tech.length} jobs=${jobsList.length} tele=${telecom.length}`);
 })().catch(e => { console.error("FATAL", e); process.exit(1); });
