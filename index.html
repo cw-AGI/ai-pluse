@@ -61,6 +61,7 @@
   .src.hf{background:rgba(255,204,77,.16);color:var(--hf)} .src.dev{background:rgba(203,213,225,.12);color:var(--dev)}
   .src.arxiv{background:rgba(178,24,43,.18);color:#ff8090} .src.job{background:rgba(91,214,111,.16);color:var(--job)}
   .src.tele{background:rgba(59,130,196,.18);color:#6db0ee}
+  .src.bsky{background:rgba(0,133,255,.16);color:#4aa8ff} .src.masto{background:rgba(99,100,255,.16);color:#8c8dff}
 
   .tabs{display:none;gap:6px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--border);overflow-x:auto}
   .tabs button{flex:1;white-space:nowrap;min-width:74px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--panel-2);color:var(--muted);font-size:13px;cursor:pointer;transition:.13s}
@@ -113,7 +114,7 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand"><span class="dot"></span>AIPulse <small>v1.4</small></div>
+  <div class="brand"><span class="dot"></span>AIPulse <small>v1.6</small></div>
   <div class="search">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <input id="kw" placeholder="关键词筛选（留空=全部，如 LLM / RAG / 5G）…" value="" autocomplete="off">
@@ -132,6 +133,7 @@
 
 <div class="chips" id="chips">
   <button class="chip active" data-kw="" data-i18n="chipAll">全部</button>
+  <button class="chip" data-src="social" data-i18n="chipSocial">社交热帖</button>
   <button class="chip" data-kw="LLM">LLM</button>
   <button class="chip" data-kw="Agent">Agent</button>
   <button class="chip" data-kw="RAG">RAG</button>
@@ -206,14 +208,14 @@
 const LANG_KEY="aipulse_lang", CFG_KEY="aipulse_cfg", CACHE_KEY="aipulse_cache_v1";
 const I18N={
  zh:{rToday:"今天",rWeek:"本周",rMonth:"本月",rAll:"全部",refresh:"刷新",autoTip:"自动刷新(5分钟)",setTip:"设置",
-   cNews:"AI 前沿",cTech:"技术栈",cJobs:"招聘岗位",cTele:"通讯行业",setTitle:"设置",chipAll:"全部",
+   cNews:"AI 前沿",cTech:"技术栈",cJobs:"招聘岗位",cTele:"通讯行业",setTitle:"设置",chipAll:"全部",chipSocial:"社交热帖",
    arxivLbl:"启用 arXiv 论文源（前沿栏）",arxivHint:"arXiv 不支持跨域，需经公共代理，可能较慢或偶尔失败。",
    proxyLbl:"CORS 代理地址（用于 arXiv）",proxyHint:"代理会拼在目标 URL 前。生产环境建议改用 GitHub Actions 定时抓取写入同源 data.json。",
    close:"关闭",loading:"加载中…",empty:"暂无结果，换个关键词或时间范围",error:"加载失败（可能被限流/跨域），显示上次缓存",
    updated:"更新于",pts:"赞",cmt:"评论",star:"星",likes:"喜欢",dl:"下载",view:"查看职位",refreshed:"已刷新",jobsHint:"来自 HN 每月「Who is hiring」帖，按关键词筛选",
    daily:"每日快照",liveLbl:"强制实时抓取（忽略 data.json）",liveHint:"关闭时优先读取每天由 GitHub Actions 生成的同源 data.json；找不到才用浏览器直连。"},
  en:{rToday:"Today",rWeek:"This week",rMonth:"This month",rAll:"All",refresh:"Refresh",autoTip:"Auto refresh (5 min)",setTip:"Settings",
-   cNews:"AI Frontier",cTech:"Tech Stack",cJobs:"Jobs",cTele:"Telecom",setTitle:"Settings",chipAll:"All",
+   cNews:"AI Frontier",cTech:"Tech Stack",cJobs:"Jobs",cTele:"Telecom",setTitle:"Settings",chipAll:"All",chipSocial:"Social",
    arxivLbl:"Enable arXiv papers (Frontier)",arxivHint:"arXiv has no CORS; routed via a public proxy, may be slow or fail occasionally.",
    proxyLbl:"CORS proxy URL (for arXiv)",proxyHint:"Prepended to the target URL. For production prefer a GitHub Actions cron writing a same-origin data.json.",
    close:"Close",loading:"Loading…",empty:"No results — try another keyword or range",error:"Failed (rate-limited/CORS); showing cached",
@@ -328,7 +330,7 @@ function renderCards(col,items){
   </a>`).join("");
   body.scrollTop=0;
 }
-function srcLabel(s){ return {hn:"HN",gh:"GitHub",hf:"HF",dev:"dev.to",arxiv:"arXiv",job:"HIRING",tele:"TELECOM"}[s]||s; }
+function srcLabel(s){ return {hn:"HN",gh:"GitHub",hf:"HF",dev:"dev.to",arxiv:"arXiv",job:"HIRING",tele:"TELECOM",bsky:"Bluesky",masto:"Mastodon"}[s]||s; }
 function metaIcon(k){ return {pts:"▲",cmt:"💬",star:"★",likes:"♥",dl:"⬇"}[k]||""; }
 
 async function loadCol(col,opts={}){
@@ -352,6 +354,7 @@ function fmtDate(ts){ try{ return new Date(ts).toLocaleString(lang==="zh"?"zh-CN
 function filterItems(items){
   const kw=($("#kw").value.trim()||"").toLowerCase(), since=sinceTs($("#range").value);
   return (items||[]).filter(it=>{
+    if(srcFilter==="social" && !(it.src==="bsky"||it.src==="masto")) return false;
     if(kw && !((it.title||"")+" "+(it.snippet||"")).toLowerCase().includes(kw)) return false;
     if(since && it.time && it.time<since*1000) return false;
     return true;
@@ -405,10 +408,15 @@ function applyLang(){
 }
 
 // ---------- 快捷词 chip ----------
+let srcFilter=null;   // 按来源筛选（如 social）
 function setActiveChip(el){ document.querySelectorAll("#chips .chip").forEach(c=>c.classList.toggle("active",c===el)); }
-document.querySelectorAll("#chips .chip").forEach(c=>c.onclick=()=>{ $("#kw").value=c.dataset.kw; setActiveChip(c); applyFilter(); });
-$("#kw").addEventListener("input",()=>{ const v=$("#kw").value.trim().toLowerCase(); let m=null;
-  document.querySelectorAll("#chips .chip").forEach(c=>{ if(c.dataset.kw.toLowerCase()===v) m=c; }); setActiveChip(m); });
+document.querySelectorAll("#chips .chip").forEach(c=>c.onclick=()=>{
+  if(c.dataset.src){ srcFilter=c.dataset.src; $("#kw").value=""; }
+  else { srcFilter=null; $("#kw").value=c.dataset.kw||""; }
+  setActiveChip(c); applyFilter();
+});
+$("#kw").addEventListener("input",()=>{ srcFilter=null; const v=$("#kw").value.trim().toLowerCase(); let m=null;
+  document.querySelectorAll("#chips .chip").forEach(c=>{ if(!c.dataset.src && c.dataset.kw.toLowerCase()===v) m=c; }); setActiveChip(m); });
 
 // ---------- 手机端主题标签 ----------
 let activeTab="news";
