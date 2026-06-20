@@ -148,24 +148,35 @@ async function srcHF() {
   }
 }
 async function srcJobs() {
+  const out = [], seen = new Set();
+  // 主力：Remotive 公共招聘 API（结构化、稳定、含大量 AI/ML 远程岗位，免 key）
+  for (const q of ["machine learning", "AI", "data engineer"]) {
+    try {
+      const d = await getJSON(`https://remotive.com/api/remote-jobs?search=${encodeURIComponent(q)}`);
+      (d.jobs || []).forEach(j => { if (!j.url || seen.has(j.url)) return; seen.add(j.url);
+        out.push({ src: "job", title: j.title,
+          snippet: ["Remotive", j.company_name, j.candidate_required_location, j.salary].filter(Boolean).join(" · "),
+          url: j.url, time: Date.parse(j.publication_date) || Date.now(),
+          meta: [[null, j.job_type || ""]] });
+      });
+    } catch (e) { console.warn("remotive", q, e.message); }
+  }
+  // 补充：HN 当月「Who is hiring」帖内的 AI 岗位
   try {
     const s = await getJSON(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent("Ask HN: Who is hiring")}&tags=story&hitsPerPage=5`);
     const hit = (s.hits || []).filter(h => /who is hiring/i.test(h.title || "")).sort((a, b) => b.created_at_i - a.created_at_i)[0];
-    if (!hit) return [];
-    const out = [], seen = new Set();
-    // 在该招聘帖内按多个关键词检索并合并（比抓一批再正则筛更稳）
-    for (const q of ["AI", "machine learning", "LLM", "data", "ML"]) {
+    if (hit) for (const q of ["AI", "machine learning", "LLM"]) {
       try {
-        const c = await getJSON(`https://hn.algolia.com/api/v1/search?tags=comment,story_${hit.objectID}&query=${encodeURIComponent(q)}&hitsPerPage=25`);
+        const c = await getJSON(`https://hn.algolia.com/api/v1/search?tags=comment,story_${hit.objectID}&query=${encodeURIComponent(q)}&hitsPerPage=20`);
         (c.hits || []).forEach(h => { if (!h.comment_text || seen.has(h.objectID)) return; seen.add(h.objectID);
           const txt = decode(h.comment_text);
-          out.push({ src: "job", title: txt.split(/[|·\n]| - |\. /)[0].slice(0, 80), snippet: txt.slice(0, 280),
+          out.push({ src: "job", title: txt.split(/[|·\n]| - |\. /)[0].slice(0, 80), snippet: txt.slice(0, 240),
             url: `https://news.ycombinator.com/item?id=${h.objectID}`, time: h.created_at_i * 1000, meta: [] });
         });
       } catch (e) {}
     }
-    return out;
-  } catch (e) { console.warn("jobs", e.message); return []; }
+  } catch (e) { console.warn("jobs-hn", e.message); }
+  return out;
 }
 const fmtNum = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : "" + n;
 
