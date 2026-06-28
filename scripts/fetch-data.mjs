@@ -215,8 +215,14 @@ async function srcBluesky(q, max = 15) {
 }
 async function srcMastodon(tag, max = 12) {
   try {
-    const d = await getJSON(`https://mastodon.social/api/v1/timelines/tag/${encodeURIComponent(tag)}?limit=${max}`);
-    return (d || []).map(s => { const text = decode(s.content || ""); if (!text) return null;
+    const d = await getJSON(`https://mastodon.social/api/v1/timelines/tag/${encodeURIComponent(tag)}?limit=20`);
+    return (d || []).filter(s => {
+      // 只保留 zh / en / 空(lang 未设置且文本像英文时放过)
+      const lang = (s.language || "").toLowerCase();
+      if (lang === "zh" || lang === "zh-cn" || lang === "zh-hans" || lang === "zh-hant" || lang === "en") return true;
+      if (lang && lang !== "en") return false;  // 其他明确语言(de/fr/ja/...)剔除
+      return true;  // lang 未设置,交给下游 isZhOrEn 过滤
+    }).map(s => { const text = decode(s.content || ""); if (!text) return null;
       return { src: "masto", title: text.length > 90 ? text.slice(0, 90) + "…" : text, author: s.account && s.account.acct,
         snippet: text.length > 90 ? text : "", url: s.url || s.uri, time: Date.parse(s.created_at) || Date.now(),
         meta: [["likes", s.favourites_count || 0], [null, "↻ " + (s.reblogs_count || 0)]] };
@@ -245,7 +251,8 @@ function dedupe(items) {
   return items.filter(i => { const k = (i.url || i.title); if (!k || seen.has(k)) return false; seen.add(k); return true; });
 }
 
-// ---------- 语言过滤: 仅保留中文 / 英文 标题 (排除日韩泰阿拉伯西里尔等) ----------
+// ---------- 语言过滤: 仅保留中文 / 英文 标题 ----------
+// 排除: 日韩泰阿拉伯西里尔 + 西欧扩展拉丁(葡/斯洛伐克/捷克/波兰/越南等)
 function isZhOrEn(text) {
   if (!text) return false;
   const hasZh = /[\u4e00-\u9fff]/.test(text);
@@ -254,8 +261,12 @@ function isZhOrEn(text) {
   const hasCyrillic = /[\u0400-\u04ff]/.test(text);                          // 俄文等
   const hasArabic = /[\u0600-\u06ff]/.test(text);                            // 阿拉伯文
   const hasThai = /[\u0e00-\u0e7f]/.test(text);                              // 泰文
+  const hasVietnamese = /[\u01b0\u1ea0-\u1ef9\u0300-\u036f]/.test(text);    // 越南语 (ă ế ộ 等)
+  // 西欧/东欧扩展拉丁 (á à č ď ě ň ř š ť ů ž 等) — 排除葡/斯/捷/波/匈等
+  const hasExtendedLatin = /[\u00c0-\u024f\u1e00-\u1eff\u0100-\u017f]/.test(text);
   // 必须含中/英其一,且不含其他语系字符
-  return (hasZh || hasEn) && !hasJpKo && !hasCyrillic && !hasArabic && !hasThai;
+  return (hasZh || hasEn) && !hasJpKo && !hasCyrillic && !hasArabic && !hasThai
+                          && !hasVietnamese && !hasExtendedLatin;
 }
 const filt = items => items.filter(it => isZhOrEn(it.title));
 
