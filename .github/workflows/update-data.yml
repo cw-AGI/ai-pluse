@@ -30,6 +30,8 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # 先拉取远端(避免并发 push 冲突)
+          git pull --rebase --autostash || git pull --rebase origin main
           git add data.json
           if git diff --staged --quiet; then
             echo "data.json 无变化, 跳过提交"
