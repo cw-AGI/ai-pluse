@@ -245,6 +245,20 @@ function dedupe(items) {
   return items.filter(i => { const k = (i.url || i.title); if (!k || seen.has(k)) return false; seen.add(k); return true; });
 }
 
+// ---------- 语言过滤: 仅保留中文 / 英文 标题 (排除日韩泰阿拉伯西里尔等) ----------
+function isZhOrEn(text) {
+  if (!text) return false;
+  const hasZh = /[\u4e00-\u9fff]/.test(text);
+  const hasEn = /[a-zA-Z]/.test(text);
+  const hasJpKo = /[\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(text);  // 平假名/片假名/谚文
+  const hasCyrillic = /[\u0400-\u04ff]/.test(text);                          // 俄文等
+  const hasArabic = /[\u0600-\u06ff]/.test(text);                            // 阿拉伯文
+  const hasThai = /[\u0e00-\u0e7f]/.test(text);                              // 泰文
+  // 必须含中/英其一,且不含其他语系字符
+  return (hasZh || hasEn) && !hasJpKo && !hasCyrillic && !hasArabic && !hasThai;
+}
+const filt = items => items.filter(it => isZhOrEn(it.title));
+
 (async () => {
   const [hn, dev, arxiv, feeds, gh, hf, jobs, teleFeeds, teleHN, bskyAI, bskyTele, mastoAI, mastoTele, redditAI, redditTele] = await Promise.all([
     srcHNStories(), srcDevto(), srcArxiv(), srcFeeds(), srcGitHub(), srcHF(), srcJobs(), srcTelecomFeeds(), srcTelecomHN(),
@@ -255,10 +269,10 @@ function dedupe(items) {
     srcReddit(["MachineLearning", "LocalLLaMA", "artificial"]),
     srcReddit(["telecom", "networking"])
   ]);
-  const news = dedupe([...hn, ...dev, ...arxiv, ...feeds, ...bskyAI, ...mastoAI, ...redditAI]).sort((a, b) => b.time - a.time).slice(0, 90);
-  const tech = dedupe([...gh, ...hf]).slice(0, 50);
-  const jobsList = dedupe(jobs).sort((a, b) => b.time - a.time).slice(0, 45);
-  const telecom = dedupe([...teleFeeds, ...teleHN, ...bskyTele, ...mastoTele, ...redditTele]).sort((a, b) => b.time - a.time).slice(0, 80);
+  const news = filt(dedupe([...hn, ...dev, ...arxiv, ...feeds, ...bskyAI, ...mastoAI, ...redditAI])).sort((a, b) => b.time - a.time).slice(0, 90);
+  const tech = filt(dedupe([...gh, ...hf])).slice(0, 50);
+  const jobsList = filt(dedupe(jobs)).sort((a, b) => b.time - a.time).slice(0, 45);
+  const telecom = filt(dedupe([...teleFeeds, ...teleHN, ...bskyTele, ...mastoTele, ...redditTele])).sort((a, b) => b.time - a.time).slice(0, 80);
 
   const data = { meta: { generatedAt: new Date().toISOString(), keywords: NEWS_QUERIES,
       counts: { news: news.length, tech: tech.length, jobs: jobsList.length, tele: telecom.length } },

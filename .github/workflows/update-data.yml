@@ -2,39 +2,39 @@ name: Update AIPulse data
 
 on:
   schedule:
-    # 每天两次：UTC 00:00 与 12:00 = 越南/北京时间约 07:00 与 19:00（早晚各刷一次）
+    # UTC 00:00 / 12:00 → 越南/北京约 07:00 / 19:00 早晚各一次
     - cron: "0 0 * * *"
     - cron: "0 12 * * *"
-  workflow_dispatch: {}   # 也可在 Actions 页面手动触发
+  workflow_dispatch:           # 手动触发
 
 permissions:
-  contents: write          # 允许工作流把 data.json 推回仓库
+  contents: write              # 写权限：把 data.json commit 回仓库
 
 jobs:
-  build:
+  fetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: 检出仓库
+        uses: actions/checkout@v5
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: 安装 Node
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
+          cache: "npm"
 
-      - name: Fetch data
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # 提高 GitHub API 限额
+      - name: 抓取数据（Node 22 内置 fetch, 零依赖）
         run: node scripts/fetch-data.mjs
 
-      - name: Commit & push if changed
+      - name: 提交更新
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data.json
-          if git diff --quiet --staged; then
-            echo "No changes."
+          if git diff --staged --quiet; then
+            echo "data.json 无变化, 跳过提交"
           else
-            git commit -m "chore: daily AIPulse data update [skip ci]"
+            git commit -m "data: 自动更新 $(date -u +'%Y-%m-%d %H:%M UTC')"
             git push
           fi

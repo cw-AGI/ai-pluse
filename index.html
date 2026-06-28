@@ -5,19 +5,54 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AIPulse · AI 情报落地页</title>
 <style>
+  /* ============================================================
+     统一 Design Token (AIPulse + GMI 共用)
+     主题: 深色玻璃风 + 等宽数字 + 蓝青主色
+     ============================================================ */
   :root{
-    --bg:#0e1116;--panel:#161b22;--panel-2:#1c232c;--border:#262d38;--border-soft:#1f2630;
-    --text:#e6edf3;--muted:#8b949e;--accent:#4493f8;--accent-soft:rgba(68,147,248,.14);--cyan:#39d3c3;
-    --hn:#ff7a18;--gh:#c9d1d9;--hf:#ffcc4d;--dev:#cbd5e1;--job:#5bd66f;
-    --radius:11px;--shadow:0 8px 30px rgba(0,0,0,.5);
-    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    /* — 背景层 — */
+    --bg:        #0a0d12;          /* 最底层: 接近黑蓝灰 */
+    --bg-2:      #11161e;          /* 次底层: topbar 等 */
+    --panel:     #141a23;          /* 卡片底 */
+    --panel-2:   #1a222d;          /* 卡片 hover / 二级面板 */
+    --glass:     rgba(255,255,255,0.035);  /* 玻璃面板 */
+    --glass-2:   rgba(255,255,255,0.06);
+    /* — 边线 — */
+    --border:        rgba(255,255,255,0.08);
+    --border-soft:   rgba(255,255,255,0.05);
+    --border-strong: rgba(255,255,255,0.14);
+    /* — 文字 — */
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --faint:   #566374;
+    /* — 品牌色 — */
+    --accent:      #4493f8;        /* 主蓝 */
+    --accent-soft: rgba(68,147,248,0.14);
+    --cyan:        #39d3c3;        /* 青绿(脉冲/高亮) */
+    --amber:       #f5a623;        /* 暖橙(点缀) */
+    --teal:        #2dd4bf;        /* 偏冷青(辅助) */
+    /* — 数据源徽章色 — */
+    --hn: #ff7a18;  --gh: #c9d1d9;  --hf: #ffcc4d;
+    --dev: #cbd5e1; --job: #5bd66f; --arxiv: #ff8090;
+    --tele: #6db0ee; --bsky: #4aa8ff; --masto: #8c8dff; --reddit: #ff7a45;
+    /* — 涨跌幅 (中文习惯: 红涨绿跌) — */
+    --up:   #ef4444;
+    --down: #22c55e;
+    /* — 圆角 — */
+    --r-sm: 6px;  --r-md: 9px;  --r-lg: 12px;  --r-xl: 16px;
+    /* — 阴影 — */
+    --shadow-sm: 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
+    --shadow-lg: 0 16px 40px rgba(0,0,0,0.5);
+    /* — 字体 — */
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, sans-serif;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased}
   body{display:flex;flex-direction:column;height:100vh;overflow:hidden}
 
-  .topbar{flex:none;display:flex;align-items:center;gap:9px;padding:11px 14px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .topbar{flex:none;display:flex;align-items:center;gap:9px;padding:11px 14px;background:linear-gradient(180deg,var(--bg-2),var(--bg));border-bottom:1px solid var(--border);flex-wrap:wrap;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
   .brand{display:flex;align-items:center;gap:9px;font-weight:700;white-space:nowrap}
   .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px var(--cyan);animation:p 2s infinite}
   @keyframes p{0%,100%{opacity:.5}50%{opacity:1}}
